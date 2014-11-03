@@ -9,9 +9,9 @@ from config import DB_CONNECT_STRING
 
 
 Base = declarative_base()
-engine = create_engine(DB_CONNECT_STRING, echo=True)    #productive it should be False
-DB_Session = sessionmaker(bind=engine)
-session = DB_Session()
+# engine = create_engine(DB_CONNECT_STRING, echo=True)    #productive it should be False
+# DB_Session = sessionmaker(bind=engine)
+# session = DB_Session()
 
 class Users(Base):
     __tablename__ = 'users'
@@ -74,9 +74,3 @@ class Replies(Base):
     member = Column(Integer, ForeignKey("users.userid"), default=0)
     reply_created = Column(DateTime, default=datetime.now)
     created = Column(DateTime, default=datetime.now)
-
-
-
-
-
-
