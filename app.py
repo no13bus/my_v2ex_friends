@@ -1,3 +1,4 @@
+#coding=utf8
 __author__ = 'no13bus'
 
 from tornado import web, ioloop, httpserver

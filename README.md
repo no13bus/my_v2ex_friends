@@ -19,3 +19,12 @@ my_v2ex_friends
 `读: 读redis->没有，读mysql->把mysql数据写回redis
 写: 写mysql->成功，写redis`
 `使用mysql的udf`
+
+- alembic检测数据表的字段属性变化的时候，需要在run_migrations_online这个函数里面要加上这个变量`compare_type=True` 这样才能检测出来数据表的变化
+```
+context.configure(
+                connection=connection,
+                target_metadata=target_metadata,
+                compare_type=True
+                )
+```
