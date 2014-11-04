@@ -1,3 +1,4 @@
+#coding=utf8
 from urlparse import urlparse
 import tornado
 from models import *
