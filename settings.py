@@ -27,6 +27,10 @@ from datetime import timedelta
 CELERYBEAT_SCHEDULE = {
     'proxy_ip': {
         'task': 'tasks.proxy_task',
-        'schedule': timedelta(seconds=60),
+        'schedule': timedelta(seconds=1860),
+    },
+    'users': {
+        'task': 'tasks.users_tasks',
+        'schedule': timedelta(seconds=3660),
     },
 }

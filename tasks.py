@@ -1,5 +1,5 @@
 #coding=utf8
-from celery import Celery,platforms
+from celery import Celery,platforms,group
 import time 
 import settings
 import requests
@@ -28,55 +28,70 @@ logger = logging.getLogger('crawlog')
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
 
+class ForException(Exception): pass
+class ForException2(Exception): pass
+
+
+@celery.task
+def users_tasks_fun(url, proxies):
+    # for x in xrange(1,5):
+    #     try:
+    #         r = requests.get(url, proxies=proxies, timeout=60)
+    #         print 'success'
+    #         break
+    #     except:
+    #         time.sleep(1)
+    #         print 'next try'
+    #         if x>=4:
+    #             logger.debug('userid=%s can not be got' % id)
+    #             return
+    try:
+        r = requests.get(url, proxies=proxies, timeout=60)
+        print 'success'
+    except:
+        return False
+    try:
+        item = json.loads(r.content)
+    except:
+        return False
+    if item['status']=='error':
+        logger.debug('ip_port=%s is used out.' % (proxies['http']))
+        return False
+    usertime = datetime.datetime.fromtimestamp(item['created'])
+    useritem = session.query(Users).filter_by(userid=item['id']).first()
+    if not useritem:
+        user = Users(userid=item['id'], status=item['status'], url=item['url'],
+            username=item['username'], website=item['website'], twitter=item['twitter'],
+            psn=item['psn'], github=item['github'], btc=item['btc'],
+            location=item['location'], tagline=item['tagline'],bio=item['bio'],
+            avatar_normal=item['avatar_normal'],user_created=usertime)
+        session.add(user)
+        print item['username']
+    session.commit()
+    return True
+
+
 @celery.task
 def users_tasks():
     # http://v2ex.com/api/members/show.json?id=79988
-    proxy_ports = settings.RD.lrange('ip_port',2,19)
+    proxy_ports = settings.RD.lrange('ip_port',0,20) #21
     for xx in proxy_ports:
         last = session.query(Users).order_by('-userid')
-        last = last[0].userid if last else 1
-        for id in xrange(last,last+105):
-            print id
+        last = last[0].userid if last.count() else 1
+        ### 119 nums
+        group_list = []
+        for id in xrange(last+1,last+100):
+            print 'userid=%s' % id
             url = 'http://v2ex.com/api/members/show.json?id=%s' % id
             if id>79988:
+                logger.debug('all is done')
                 return
             proxies = {'http':xx}
-            print proxies
-            for x in xrange(1,5):
-                try:
-                    r = requests.get(url, proxies=proxies, timeout=60*4)
-                    print 'seccess'
-                    break
-                except Exception as p2:
-                    print p2
-                    time.sleep(1)
-                    print 'next try'
-                    if x>=4:
-                        logger.debug('userid=%s' % id)
-                        print p2
-                        return
-
-            # try:
-            #     r = requests.get(url, proxies=proxies, timeout=60*4)
-            # except:
-            #     logger.debug('userid=%s' % id)
-            #     continue
-            try:
-                item = json.loads(r.content)
-            except:
-                continue
-            print item
-            usertime = datetime.datetime.fromtimestamp(item['created'])
-            useritem = session.query(Users).filter_by(userid=item['id']).first()
-            if not useritem:
-                user = Users(userid=item['id'], status=item['status'], url=item['url'],
-                    username=item['username'], website=item['website'], twitter=item['twitter'],
-                    psn=item['psn'], github=item['github'], btc=item['btc'],
-                    location=item['location'], tagline=item['tagline'],bio=item['bio'],
-                    avatar_normal=item['avatar_normal'],user_created=usertime)
-                session.add(user)
-                print item['username']
-            session.commit()
+            group_list.append(users_tasks_fun.s(url, proxies))
+        if group_list:
+            g1 = group(group_list)
+            g = g1().get()
+            print g
 
 @celery.task
 def nodes_tasks():
@@ -124,15 +139,6 @@ def testproxy(ip_port):
 
 @celery.task
 def proxy_task():
-    # ip_lists = proxy_iplist.objects.filter(worked=True).order_by('-created')[0:5]
-    # pool = redis.ConnectionPool(host='localhost', port=6379, db=1)
-    # rd = redis.Redis(connection_pool=pool)
-    # # rd = settings.RD
-    ip_nums = settings.RD.llen('ip_port')
-    if settings.RD.llen('ip_port') >= 6:
-        settings.RD.ltrim('ip_port',0,0)
-        print '1 step done'
-
     proxyurl= 'http://www.pachong.org/'
     headers = {
     'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -163,7 +169,7 @@ def proxy_task():
     trs = table.find_all('tr',attrs={'data-type':'high'})
     
 
-    for tr in trs:
+    for tr in trs[0:21]:
         idlestring = tr.find_all('td')[5].text
         idlestring = idlestring.replace('\n','').replace(' ','')
         if idlestring == u'空闲':
@@ -183,12 +189,72 @@ def proxy_task():
             print 'ip_port is %s' % ip_port
             if testproxy(ip_port) == -1:
                 continue
-            if settings.RD.llen('ip_port')<=6:
-                settings.RD.lpush('ip_port', ip_port)
-            else:
-                print 'it is done ip_port'
-                break
+            # if settings.RD.llen('ip_port')<=20:
+            settings.RD.lpush('ip_port', ip_port)
+            # else:
+            print 'it is done ip_port'
+
 
     print 'it is done'
+
+
+# @celery.task
+# def users_tasks():
+#     # http://v2ex.com/api/members/show.json?id=79988
+#     proxy_ports = settings.RD.lrange('ip_port',0,20) #21
+#     for xx in proxy_ports:
+#         last = session.query(Users).order_by('-userid')
+#         last = last[0].userid if last.count() else 1
+#         ### 119 nums
+#         cc=0
+#         try:
+#             for id in xrange(last+1,last+120):
+#                 print 'userid=%s' % id
+#                 print 'cc=%s' % cc
+#                 url = 'http://v2ex.com/api/members/show.json?id=%s' % id
+#                 if id>79988:
+#                     logger.debug('all is done')
+#                     return
+#                 proxies = {'http':xx}
+#                 try:
+#                     for x in xrange(1,5):
+#                         try:
+#                             r = requests.get(url, proxies=proxies, timeout=60*4)
+#                             print 'success'
+#                             break
+#                         except:
+#                             time.sleep(1)
+#                             print 'next try'
+#                             if x>=4:
+#                                 logger.debug('userid=%s can not be got' % id)
+#                                 raise ForException()
+#                 except ForException:
+#                     logger.debug('userid=%s finnally can not be got' % id)
+#                     continue
+#                 try:
+#                     item = json.loads(r.content)
+#                 except:
+#                     continue
+
+#                 if item['status']=='error':
+#                     logger.debug('ip_port=%s is used out.nums is %s' % (xx, cc))
+#                     raise ForException2()
+
+#                 usertime = datetime.datetime.fromtimestamp(item['created'])
+#                 useritem = session.query(Users).filter_by(userid=item['id']).first()
+#                 if not useritem:
+#                     user = Users(userid=item['id'], status=item['status'], url=item['url'],
+#                         username=item['username'], website=item['website'], twitter=item['twitter'],
+#                         psn=item['psn'], github=item['github'], btc=item['btc'],
+#                         location=item['location'], tagline=item['tagline'],bio=item['bio'],
+#                         avatar_normal=item['avatar_normal'],user_created=usertime)
+#                     session.add(user)
+#                     print item['username']
+#                 session.commit()
+#                 cc = cc + 1
+#         except ForException2:
+#             logger.debug('ip_port=%s is finnally used out.nums is %s' % (xx, cc))
+#             continue
+
 # {u'status': u'error', u'message': u'Rate Limit Exceeded', u'rate_limit': {u'hourly_remaining': 0, u'used': 120, u'hourly_quota': 120}}
 # celery -A tasks worker -l info -c 100 -P gevent
