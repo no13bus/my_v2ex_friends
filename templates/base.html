@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>V2EX好基友</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/css/bootstrap.min.css">
+    <link rel="stylesheet" href="http://cdn.staticfile.org/font-awesome/4.2.0/css/font-awesome.css">
+</head>
+<body style="padding: 50px 25px 25px 25px;">
+    {% block header %}
+    <div class="navbar navbar-default navbar-inverse navbar-fixed-top">
+      <div class="container">
+        <div class="navbar-header">
+          <a href="../" class="navbar-brand">V2EX好基友</a>
+          <button class="navbar-toggle" type="button" data-toggle="collapse" data-target="#navbar-main">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+        </div>
+        <div class="navbar-collapse collapse" id="navbar-main">
+          <ul class="nav navbar-nav">
+            <li>
+              <a href="/">首页</a>
+            </li>
+            <li>
+              <a href="#"><i class="fa fa-group"></i> 琅琊榜</a>
+            </li>
+            
+            <li><a href="#"><i class="fa fa-question-circle"></i> 关于</a></li>
+          </ul>
+          
+          <ul class="nav navbar-nav navbar-right">
+            <form class="navbar-form navbar-left">
+               <input type="text" class="form-control col-sm-2" placeholder="v2ex的ID">
+            </form>
+          </ul>
+
+        </div>
+      </div>
+    </div>
+    {% end %}
+    {% block content %}
+    <div class="container">
+        <form action="" method="POST">
+            {% raw xsrf_form_html() %}
+            <div class="form-group has-success" style="width: 50%;text-align:center;margin:200px auto;">
+              <label class="control-label" for="inputSuccess">输入你的v2ex的id</label><br>
+              <div class="input-group">
+                  <input type="text" class="form-control" id="v2ex_id" name="v2ex_id">
+                  <span class="input-group-btn">
+                      <button class="btn btn-primary btn-default" type="submit">提交</button>
+                  </span>
+              </div>
+            </div>
+        </form>
+    </div>
+    {% end %}
+    
+
+        
+
+<script src="http://cdn.bootcss.com/jquery/2.1.0/jquery.js"></script>
+<script src="http://cdn.bootcss.com/bootstrap/3.3.1/js/bootstrap.min.js"></script>
+</body>
+</html>

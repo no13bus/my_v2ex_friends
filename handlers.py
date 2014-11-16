@@ -12,6 +12,7 @@ import tornado.ioloop
 import tornado.options
 import tornado.web
 import tornado.httpclient
+from lib.v2exapi import V2exApi
 
 
 # class BaseHandler(tornado.web.RequestHandler):
@@ -29,17 +30,37 @@ class BaseHandler(tornado.web.RequestHandler):
         return self.get_secure_cookie("username")
 
 class IndexHandler(BaseHandler):
-    @tornado.web.asynchronous
+    # @tornado.web.asynchronous
     def get(self):
         # user = Users(userid=1,username='jqh')
         # self.session.add(user)
         # self.session.commit()
-        test.delay('sss')
+        
         self.render('index.html')
 
     def post(self):
-        pass
+        v2ex_id = self.get_argument('v2ex_id')
+        self.redirect('/u/%s' % v2ex_id, permanent=True)
 
+def dateformat(datestamp):
+    mydate = datetime.datetime.fromtimestamp(datestamp)
+    mydatestring = mydate.strftime("%Y-%m-%d %H-%M-%S")
+    return mydatestring
+
+def prettytime(datestamp):
+    mydate = datetime.datetime.fromtimestamp(datestamp)
+    time_cha = datetime.datetime.now() - mydate
+    return '%s天%s小时' % (time_cha.days, time_cha.seconds/3600)
+    
+
+class UsersHandler(BaseHandler):
+    def get(self, username):
+        v = V2exApi()
+        userinfo = v.get_userinfo(username)
+        self.render('user.html', userinfo=userinfo, username=username, dateformat=dateformat, prettytime=prettytime)
+
+    def post(self):
+        pass
 
 ##example
 

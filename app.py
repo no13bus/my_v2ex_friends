@@ -1,4 +1,4 @@
-#coding=utf8
+# coding=utf8
 __author__ = 'no13bus'
 
 from tornado import web, ioloop, httpserver
@@ -10,13 +10,19 @@ import handlers
 from db import ConnectDB
 
 define('port', default=8000, type=int, help='server port')
-define('template_path', default=os.path.join(os.path.dirname(__file__), "templates"), type=str, help='template path')
-define('static_path', default=os.path.join(os.path.dirname(__file__), "static"), help='Redis server port')
+define('template_path', default=os.path.join(
+    os.path.dirname(__file__), "templates"), type=str, help='template path')
+define('static_path', default=os.path.join(
+    os.path.dirname(__file__), "static"), help='static file path')
+
 
 class V2exapp(web.Application):
+
     def __init__(self):
         routes = [
-            (r'/.*', handlers.IndexHandler)
+            (r'/', handlers.IndexHandler),
+            (r'/u/(.*)', handlers.UsersHandler),
+
         ]
         web.Application.__init__(self, routes, **settings)
         self.session = ConnectDB()
