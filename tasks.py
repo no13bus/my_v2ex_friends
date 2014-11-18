@@ -1,5 +1,5 @@
 #coding=utf8
-from celery import Celery,platforms,group
+from celery import Celery,platforms,group,chain
 import time 
 import settings
 import requests
@@ -34,17 +34,6 @@ class ForException2(Exception): pass
 
 @celery.task
 def users_tasks_fun(url, proxies):
-    # for x in xrange(1,5):
-    #     try:
-    #         r = requests.get(url, proxies=proxies, timeout=60)
-    #         print 'success'
-    #         break
-    #     except:
-    #         time.sleep(1)
-    #         print 'next try'
-    #         if x>=4:
-    #             logger.debug('userid=%s can not be got' % id)
-    #             return
     try:
         r = requests.get(url, proxies=proxies, timeout=60)
         print 'success'
@@ -92,6 +81,37 @@ def users_tasks():
             g1 = group(group_list)
             g = g1().get()
             print g
+
+useridlist=[]
+with open('/tmp/aa.txt', 'rb') as f:
+    useridlist = f.read().split('\n')
+
+
+@celery.task
+def users_tasks1():
+    global useridlist
+    # http://v2ex.com/api/members/show.json?id=79988
+    proxy_ports = settings.RD.lrange('ip_port',0,20) #21
+    for xx in proxy_ports:
+        group_list = []
+        for iditem in useridlist[1:100]:
+            print 'userid=%s' % iditem
+            url = 'http://v2ex.com/api/members/show.json?id=%s' % iditem
+            
+            proxies = {'http':xx}
+            group_list.append(users_tasks_fun.s(url, proxies))
+        if group_list:
+            g1 = group(group_list)
+            g = g1().get()
+            print g
+        useridlist = useridlist[101:]
+        logger.debug('useridlist length is %s' % len(useridlist))
+    logger.debug('finnaly ******useridlist length is %s' % len(useridlist))
+
+# @celery.task
+# def getusers():
+#     c = chain(proxy_task.s(), users_tasks1.s())
+#     print c().get()
 
 @celery.task
 def nodes_tasks():
@@ -258,3 +278,8 @@ def proxy_task():
 
 # {u'status': u'error', u'message': u'Rate Limit Exceeded', u'rate_limit': {u'hourly_remaining': 0, u'used': 120, u'hourly_quota': 120}}
 # celery -A tasks worker -l info -c 100 -P gevent
+
+# session = ConnectDB()
+# a=[i.id for i in session.query(Users)]
+# b = [i.userid for i in session.query(Users)]
+# c = list(set(a).difference(set(b)))
