@@ -30,7 +30,8 @@ CELERYBEAT_SCHEDULE = {
         'schedule': timedelta(seconds=1860),
     },
     'users': {
-        'task': 'tasks.users_tasks',
+        'task': 'tasks.users_tasks1',
         'schedule': timedelta(seconds=3660),
     },
+    
 }
