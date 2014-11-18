@@ -1,10 +1,18 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
-<head>
-    <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
-    <title>Document</title>
-</head>
-<body>
-    
-</body>
-</html>
+{% extends base.html %}
+
+{% block content %}
+    <div class="container">
+        <form action="" method="POST">
+            {% raw xsrf_form_html() %}
+            <div class="form-group has-success" style="width: 50%;text-align:center;margin:200px auto;">
+              <label class="control-label" for="inputSuccess">输入你的v2ex的id</label><br>
+              <div class="input-group">
+                  <input type="text" class="form-control" id="v2ex_id" name="v2ex_id">
+                  <span class="input-group-btn">
+                      <button class="btn btn-primary btn-default" type="submit">提交</button>
+                  </span>
+              </div>
+            </div>
+        </form>
+    </div>
+{% end %}

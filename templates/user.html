@@ -1,0 +1,44 @@
+{% extends base.html %}
+
+{% block content %}
+    <div class="container">
+        <div class="row" style="margin:50px auto">
+            <div class="col col-md-9" style="text-align:center;">
+                <h1>{{ username }} 的V2EX</h1>
+                <form action="/queue" method="POST" style="margin:100px 1px 1px 1px;">
+                    {% raw xsrf_form_html() %}
+                    <div class="form-group has-success">
+                        <button class="btn btn-primary btn-default" type="submit">开启 {{ username }} 的V2EX之旅</button>
+                    </div>
+                    <div class="progress progress-striped active" style="width: 40%;margin:auto;">
+                      <div class="progress-bar" style="width: 45%;"></div>
+                    </div>
+                </form>
+                <hr>
+                
+                <p>查看他的V2EX的足迹</p>
+            </div>
+            <div class="col col-md-3">
+                <h2>谁是{{ username }}?</h2>
+                <img src="{{ userinfo['avatar_large'] }}" alt="" class="img-rounded">
+                <hr>
+                <p>
+                    <a href="{{ userinfo['url'] }}">{{ userinfo['username'] }}</a>是v2ex第{{ userinfo['id'] }}号会员。
+                    {% if userinfo['location'] %}住在<i class="fa fa-map-marker fa-lg"></i>{{ userinfo['location'] }},{% end %}
+                    于{{ dateformat(userinfo['created']) }}加入 V2EX。已经加入了{{ prettytime(userinfo['created']) }}。
+                </p>
+                {% if userinfo['website'] %}<a href="{{ userinfo['website'] }}" target="_blank"><i class="fa fa-book fa-lg"></i></a>{% end %}
+                {% if userinfo['twitter'] %}<a href="{{ userinfo['twitter'] }}" target="_blank"><i class="fa fa-twitter fa-lg"></i></a>{% end %}
+                {% if userinfo['github'] %}<a href="{{ userinfo['github'] }}" target="_blank"><i class="fa fa-github-alt fa-lg"></i></a>{% end %}
+                <hr>
+                {% if userinfo['bio'] %}
+                <p>
+                    个人简介:
+                    {{ userinfo['bio'] }}
+                </p>
+                {% end %}
+
+            </div>
+        </div>
+    </div>
+{% end %}
