@@ -91,7 +91,7 @@ def users_tasks():
             g = g1().get()
             print g
 
-<<<<<<< HEAD
+
 useridlist=[]
 with open('/tmp/aa.txt', 'rb') as f:
     useridlist = f.read().split('\n')
@@ -122,8 +122,7 @@ def users_tasks1():
 # def getusers():
 #     c = chain(proxy_task.s(), users_tasks1.s())
 #     print c().get()
-=======
->>>>>>> 9adcd9570da8ef5f273cefb4cb3b01518b464034
+
 
 @celery.task
 def nodes_tasks():
