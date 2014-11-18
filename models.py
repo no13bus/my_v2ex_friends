@@ -68,6 +68,27 @@ class Topics(Base):
     def __repr__(self):
         return 'title:%s content:%s' % (self.title, self.content)
 
+###这个是不是要考虑放到redis里面去呢？
+class Tags(Base):
+    __tablename__ = 'tags'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), default='')
+    created = Column(DateTime, default=datetime.now)
+    def __repr__(self):
+        return 'name:%s ' % self.name
+###这个是不是要考虑放到redis里面去呢？
+class User_Tag(Base):
+    __tablename__ = 'user_tag'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user = Column(Integer, ForeignKey("users.userid"), default=0)
+    tag = Column(Integer, ForeignKey("tags.id"), default=0)
+    created = Column(DateTime, default=datetime.now)
+    def __repr__(self):
+        return 'username:%s tag_name:%s' % (self.user.username, self.tag.name)
+
+###用户的每次统计的最热点击帖子 回复最多帖子 最新帖子 这个统计结果是不是要入库 还是redis缓存起来
+###还有就是2个人之间的比较结果？
+
 class Replies(Base):
     __tablename__ = 'replies'
     id = Column(Integer, primary_key=True, autoincrement=True)
