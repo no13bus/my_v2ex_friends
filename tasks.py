@@ -138,9 +138,9 @@ def users_tasks():
             print g
 
 
-useridlist=[]
-with open('/tmp/aa.txt', 'rb') as f:
-    useridlist = f.read().split('\n')
+# useridlist=[]
+# with open('/tmp/aa.txt', 'rb') as f:
+#     useridlist = f.read().split('\n')
 
 
 @celery.task
@@ -338,11 +338,10 @@ def proxy_task():
 
 # {u'status': u'error', u'message': u'Rate Limit Exceeded', u'rate_limit': {u'hourly_remaining': 0, u'used': 120, u'hourly_quota': 120}}
 # celery -A tasks worker -l info -c 100 -P gevent
-<<<<<<< HEAD
+
 
 # session = ConnectDB()
 # a=[i.id for i in session.query(Users)]
 # b = [i.userid for i in session.query(Users)]
 # c = list(set(a).difference(set(b)))
-=======
->>>>>>> 9adcd9570da8ef5f273cefb4cb3b01518b464034
+

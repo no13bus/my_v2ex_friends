@@ -53,5 +53,9 @@ docs/_build/
 # PyBuilder
 target/
 
+celerybeat-schedule
 
+
+v2ex.log
+v2ex.log.*
 alembic/versions/*.*
