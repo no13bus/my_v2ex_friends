@@ -25,13 +25,9 @@ CELERYD_POOL_RESTARTS = True
 
 from datetime import timedelta
 CELERYBEAT_SCHEDULE = {
-    'proxy_ip': {
-        'task': 'tasks.proxy_task',
-        'schedule': timedelta(seconds=1860),
-    },
-    'users': {
-        'task': 'tasks.users_tasks1',
-        'schedule': timedelta(seconds=3660),
+    'users_chain_3600': {
+        'task': 'tasks.users_chain',
+        'schedule': timedelta(seconds=3605),
     },
     
 }

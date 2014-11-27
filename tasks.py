@@ -38,47 +38,47 @@ class ForException(Exception):
 class ForException2(Exception):
     pass
 
-@celery.task
-def user_topics(username):
-    url = 'http://v2ex.com/member/%s/topics?p=1' % username
-    r = requests.get(url, timeout=60*4)
-    c = r.content
-    b = BeautifulSoup(c)
-    page_num = b.select('.inner')[2].select('.fade')[0].text
-    page_num = int(page_num.replace('1/',''))
-    for page in xrange(1,page_num+1):
-        url = 'http://v2ex.com/member/%s/topics?p=%s' % (username, page)
-        r = requests.get(url, timeout=60*4)
-        c = r.content
-        b = BeautifulSoup(c)
-        topics = b.select('.cell.item')
-        for topic in topics:
-            title = topic.select('span')[0].string
-            repies_count = int(topic.select('.count_livid')[0]) if topic.select('.count_livid') else 0
-            topic_info = topic.select('span')[1].text.split(u'\xa0\u2022\xa0')
-            topic_node_name = topic_info[0].replace(' ','')
-            topic_url = 'http://v2ex.com%s' % topic.select('span')[0].a['href']
-            patt = re.compile(u'.*?t/(\d+)#.*')
-            topicid = int(re.findall(patt,topic_url)[0])
+# @celery.task
+# def user_topics(username):
+#     url = 'http://v2ex.com/member/%s/topics?p=1' % username
+#     r = requests.get(url, timeout=60*4)
+#     c = r.content
+#     b = BeautifulSoup(c)
+#     page_num = b.select('.inner')[2].select('.fade')[0].text
+#     page_num = int(page_num.replace('1/',''))
+#     for page in xrange(1,page_num+1):
+#         url = 'http://v2ex.com/member/%s/topics?p=%s' % (username, page)
+#         r = requests.get(url, timeout=60*4)
+#         c = r.content
+#         b = BeautifulSoup(c)
+#         topics = b.select('.cell.item')
+#         for topic in topics:
+#             title = topic.select('span')[0].string
+#             repies_count = int(topic.select('.count_livid')[0]) if topic.select('.count_livid') else 0
+#             topic_info = topic.select('span')[1].text.split(u'\xa0\u2022\xa0')
+#             topic_node_name = topic_info[0].replace(' ','')
+#             topic_url = 'http://v2ex.com%s' % topic.select('span')[0].a['href']
+#             patt = re.compile(u'.*?t/(\d+)#.*')
+#             topicid = int(re.findall(patt,topic_url)[0])
 
-            topic_r = requests.get(topic_url, headers=headers, timeout=60*4)
-            topic_c = topic_r.content
-            topic_b = BeautifulSoup(topic_c)
-            ## 帖子不一定有内容
-            tc = topic_b.select('.topic_content')
-            topic_content = u''
-            if tc:
-                for i in topic_b.select('.topic_content'):
-                    topic_content = topic_content + i.text
+#             topic_r = requests.get(topic_url, headers=headers, timeout=60*4)
+#             topic_c = topic_r.content
+#             topic_b = BeautifulSoup(topic_c)
+#             ## 帖子不一定有内容
+#             tc = topic_b.select('.topic_content')
+#             topic_content = u''
+#             if tc:
+#                 for i in topic_b.select('.topic_content'):
+#                     topic_content = topic_content + i.text
 
-            topic_info2 = topic_b.select('small.gray')[0].text.split(u'\xb7')
-            topic_created = topic_info2[1].replace(' ','')
-            topic_clicks = topic_info2[2].replace(' ','').replace(u'\u6b21\u70b9\u51fb', '')
-            topic_clicks = int(topic_clicks)
-            member = session.query(Users).filter(Users.username=username).first()
-            node = session.query(Nodes).filter(Nodes.name=topic_node_name).first()
-            Topics(topicid=topicid, title=title, url=topic_url, content=topic_content,
-                repies=repies_count, member=member, node=node, topic_created=topic_created)
+#             topic_info2 = topic_b.select('small.gray')[0].text.split(u'\xb7')
+#             topic_created = topic_info2[1].replace(' ','')
+#             topic_clicks = topic_info2[2].replace(' ','').replace(u'\u6b21\u70b9\u51fb', '')
+#             topic_clicks = int(topic_clicks)
+#             member = session.query(Users).filter(Users.username=username).first()
+#             node = session.query(Nodes).filter(Nodes.name=topic_node_name).first()
+#             Topics(topicid=topicid, title=title, url=topic_url, content=topic_content,
+#                 repies=repies_count, member=member, node=node, topic_created=topic_created)
 
 
 # @celery.task
@@ -97,7 +97,7 @@ def users_tasks_fun(url, proxies):
     except:
         return False
     if item['status'] == 'error':
-        logger.debug('ip_port=%s is used out.' % (proxies['http']))
+        logger.debug('ip_port=%s is used out.url=%s' % (proxies['http'], url))
         return False
     usertime = datetime.datetime.fromtimestamp(item['created'])
     useritem = session.query(Users).filter_by(userid=item['id']).first()
@@ -118,7 +118,7 @@ def users_tasks_fun(url, proxies):
 @celery.task
 def users_tasks():
     # http://v2ex.com/api/members/show.json?id=79988
-    proxy_ports = settings.RD.lrange('ip_port', 0, 20)  # 21
+    proxy_ports = settings.RD.lrange('ip_port', 0, 40)  # 21
     for xx in proxy_ports:
         last = session.query(Users).order_by('-userid')
         last = last[0].userid if last.count() else 1
@@ -127,7 +127,7 @@ def users_tasks():
         for id in xrange(last + 1, last + 100):
             print 'userid=%s' % id
             url = 'http://v2ex.com/api/members/show.json?id=%s' % id
-            if id > 79988:
+            if id > 84113:
                 logger.debug('all is done')
                 return
             proxies = {'http': xx}
@@ -137,37 +137,33 @@ def users_tasks():
             g = g1().get()
             print g
 
-
+##########################
 # useridlist=[]
 # with open('/tmp/aa.txt', 'rb') as f:
 #     useridlist = f.read().split('\n')
 
 
-@celery.task
-def users_tasks1():
-    global useridlist
-    # http://v2ex.com/api/members/show.json?id=79988
-    proxy_ports = settings.RD.lrange('ip_port',0,20) #21
-    for xx in proxy_ports:
-        group_list = []
-        for iditem in useridlist[1:100]:
-            print 'userid=%s' % iditem
-            url = 'http://v2ex.com/api/members/show.json?id=%s' % iditem
-            
-            proxies = {'http':xx}
-            group_list.append(users_tasks_fun.s(url, proxies))
-        if group_list:
-            g1 = group(group_list)
-            g = g1().get()
-            print g
-        useridlist = useridlist[101:]
-        logger.debug('useridlist length is %s' % len(useridlist))
-    logger.debug('finnaly ******useridlist length is %s' % len(useridlist))
-
 # @celery.task
-# def getusers():
-#     c = chain(proxy_task.s(), users_tasks1.s())
-#     print c().get()
+# def users_tasks1():
+#     global useridlist
+#     # http://v2ex.com/api/members/show.json?id=79988
+#     proxy_ports = settings.RD.lrange('ip_port',0,20) #21
+#     for xx in proxy_ports:
+#         group_list = []
+#         for iditem in useridlist[1:100]:
+#             print 'userid=%s' % iditem
+#             url = 'http://v2ex.com/api/members/show.json?id=%s' % iditem
+            
+#             proxies = {'http':xx}
+#             group_list.append(users_tasks_fun.s(url, proxies))
+#         if group_list:
+#             g1 = group(group_list)
+#             g = g1().get()
+#             print g
+#         useridlist = useridlist[101:]
+#         logger.debug('useridlist length is %s' % len(useridlist))
+#     logger.debug('finnaly ******useridlist length is %s' % len(useridlist))
+##########################
 
 
 @celery.task
@@ -221,7 +217,7 @@ def testproxy(ip_port):
 
 @celery.task
 def proxy_task():
-    proxyurl = 'http://www.pachong.org/'
+    proxyurl = 'http://pachong.org/anonymous.html'
     headers = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Encoding': 'gzip,deflate,sdch',
@@ -248,9 +244,10 @@ def proxy_task():
     if not table:
         return
     table = table[0]
-    trs = table.find_all('tr', attrs={'data-type': 'high'})
-
-    for tr in trs[0:21]:
+    # trs = table.find_all('tr', attrs={'data-type': 'anonymous'})
+    trs = table.find_all('tr')
+    # for tr in trs[0:21]:
+    for tr in trs[0:40]:
         idlestring = tr.find_all('td')[5].text
         idlestring = idlestring.replace('\n', '').replace(' ', '')
         if idlestring == u'空闲':
@@ -345,3 +342,8 @@ def proxy_task():
 # b = [i.userid for i in session.query(Users)]
 # c = list(set(a).difference(set(b)))
 
+
+@celery.task
+def users_chain():
+    c = chain(proxy_task.si(), users_tasks.si())
+    c()
