@@ -113,10 +113,10 @@ def test1():
 #                 repies=repies_count, member=member, node=node, topic_created=topic_created)
 
 
-# @celery.task
-# def user_replies(username):
 
-
+### 现在问题是在函数执行的过程中 代理ip的使用次数是慢慢逐个的涨的，如果执行一次执行时间过长，那么可能这
+### 一回合在半小时的时候完成，那么在下一次的过程中，可能这个ip的使用间隔没有超过1个小时或者等于1个小时
+### 现在采取的就是吧间隔的时间变长 变成1个小时加15分钟
 @celery.task(max_retries=3)
 def users_tasks_fun(proxies_key, uid, url, proxies):
     ### race condition
@@ -273,7 +273,8 @@ def testproxy(ip_port):
 def proxy_task():
     # delete all proxies and proxies:count
     ip_keys = rd.keys('proxies:*')
-    rd.delete(*ip_keys)
+    if ip_keys:
+        rd.delete(*ip_keys)
     # get the proxies
     proxyurl = 'http://pachong.org'
     headers = {
