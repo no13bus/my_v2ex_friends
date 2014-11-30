@@ -14,6 +14,8 @@ from bs4 import BeautifulSoup
 import redis
 import logging
 import logging.handlers
+from redis.exceptions import LockError, WatchError
+
 
 celery = Celery(
     'v2ex', broker='redis://localhost:6379/0', backend='redis://localhost')
@@ -22,14 +24,14 @@ session = ConnectDB()
 
 LOG_FILE = 'v2ex.log'
 handler = logging.handlers.RotatingFileHandler(
-    LOG_FILE, maxBytes=1024 * 1024, backupCount=5)
+    LOG_FILE, maxBytes=1024 * 1024 * 50, backupCount=5)
 fmt = '%(asctime)s - %(filename)s:%(lineno)s - %(name)s - %(message)s'
 formatter = logging.Formatter(fmt)
 handler.setFormatter(formatter)
 logger = logging.getLogger('crawlog')
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
-
+rd = settings.RD
 
 class ForException(Exception):
     pass
@@ -37,6 +39,36 @@ class ForException(Exception):
 
 class ForException2(Exception):
     pass
+
+@celery.task
+def test2():
+    time.sleep(3)
+    p_len = settings.RD.llen('ip_port')
+    if p_len>=4:
+        print settings.RD.lpop('ip_port')
+        print '---delete'
+        print settings.RD.llen('ip_port')
+
+@celery.task
+def test1():
+    with r.pipeline() as pipe:
+        while 1:
+            try:
+                pipe.watch('ip_port')
+                p_len = pipe.llen('ip_port')
+                if p_len>=4:
+                    pipe.multi()
+                    pipe.lpop('ip_port')
+                    pipe.execute()
+                    print pipe.llen('ip_port')
+                    break
+                else:
+                    pipe.unwatch()
+                    break
+            except WatchError:
+                continue
+
+
 
 # @celery.task
 # def user_topics(username):
@@ -85,20 +117,48 @@ class ForException2(Exception):
 # def user_replies(username):
 
 
-@celery.task
-def users_tasks_fun(url, proxies):
+@celery.task(max_retries=3)
+def users_tasks_fun(proxies_key, uid, url, proxies):
+    ### race condition
+    with rd.pipeline() as pipe:
+        while 1:
+            try:
+                pipe.watch(proxies_key)
+                count = int(rd.hget(proxies_key, 'num'))
+                if count<150:
+                    pipe.multi()
+                    pipe.hincrby(proxies_key, 'num', 1)
+                    pipe.execute()
+                    break
+                else:
+                    logger.debug('proxies=%s is used out!!' % proxies['http'])
+                    pipe.unwatch()
+                    return [uid, False]
+            except WatchError:
+                continue
+
+    # count = int(rd.hget(proxies_key, 'num'))
+    # if count >= 150:
+    #     logger.debug('proxies=%s is used out!!' % proxies['http'])
+    #     return [uid, False]
+    # else:
+    #     rd.hincrby(proxies_key, 'num', 1)
+    ###
     try:
         r = requests.get(url, proxies=proxies, timeout=60)
         print 'success'
-    except:
-        return False
+    except Exception as exc :
+        raise users_tasks_fun.retry(countdown=1, exc=exc)
     try:
         item = json.loads(r.content)
     except:
-        return False
+        return [uid, False]
     if item['status'] == 'error':
-        logger.debug('ip_port=%s is used out.url=%s' % (proxies['http'], url))
-        return False
+        logger.debug('proxies=%s is used out.url=%s' % (proxies['http'], url))
+        return [uid, False]
+    if not('created' in item):
+        return [uid, False]
+
     usertime = datetime.datetime.fromtimestamp(item['created'])
     useritem = session.query(Users).filter_by(userid=item['id']).first()
     if not useritem:
@@ -110,60 +170,50 @@ def users_tasks_fun(url, proxies):
                          'tagline'], bio=item['bio'],
                      avatar_normal=item['avatar_normal'], user_created=usertime)
         session.add(user)
+        session.commit()
         print item['username']
-    session.commit()
-    return True
+        
+    return [uid, True]
 
 
 @celery.task
 def users_tasks():
     # http://v2ex.com/api/members/show.json?id=79988
-    proxy_ports = settings.RD.lrange('ip_port', 0, 40)  # 21
-    for xx in proxy_ports:
-        last = session.query(Users).order_by('-userid')
-        last = last[0].userid if last.count() else 1
-        # 119 nums
+    proxies_num = int(rd.get('proxies:count'))
+    ### get the userid list to handle
+    last = session.query(Users).order_by('-userid')[0].userid
+    all_userid = [i.id for i in session.query(Users)]
+    all_id = [i.userid for i in session.query(Users)]
+    c = list(set(all_userid).difference(set(all_id)))
+    if len(c)<proxies_num*100:
+        ccc = proxies_num*100 - len(c)
+        final_get_userids = c + range(1+last,ccc+last+1)
+    else:
+        final_get_userids = c
+
+    logger.debug('now final_get_userids first is %s' % final_get_userids[0])
+
+    for xx in range(1, proxies_num+1):
         group_list = []
-        for id in xrange(last + 1, last + 100):
-            print 'userid=%s' % id
-            url = 'http://v2ex.com/api/members/show.json?id=%s' % id
-            if id > 84113:
+        for uid in final_get_userids[0:99]:
+            ip_port = rd.hget('proxies:%s' % xx, 'ip_port')
+            print 'userid=%s' % uid
+            url = 'http://v2ex.com/api/members/show.json?id=%s' % uid
+            if uid > 84113:
                 logger.debug('all is done')
                 return
-            proxies = {'http': xx}
-            group_list.append(users_tasks_fun.s(url, proxies))
+            proxies = {'http': ip_port}
+            group_list.append(users_tasks_fun.s('proxies:%s' % xx, uid, url, proxies))
         if group_list:
             g1 = group(group_list)
             g = g1().get()
             print g
+        final_get_userids = final_get_userids[100:]
+        print len(final_get_userids)
+        logger.debug('final_get_userids=%s' % len(final_get_userids))
+        logger.debug('xx=%s' % xx)
 
-##########################
-# useridlist=[]
-# with open('/tmp/aa.txt', 'rb') as f:
-#     useridlist = f.read().split('\n')
-
-
-# @celery.task
-# def users_tasks1():
-#     global useridlist
-#     # http://v2ex.com/api/members/show.json?id=79988
-#     proxy_ports = settings.RD.lrange('ip_port',0,20) #21
-#     for xx in proxy_ports:
-#         group_list = []
-#         for iditem in useridlist[1:100]:
-#             print 'userid=%s' % iditem
-#             url = 'http://v2ex.com/api/members/show.json?id=%s' % iditem
-            
-#             proxies = {'http':xx}
-#             group_list.append(users_tasks_fun.s(url, proxies))
-#         if group_list:
-#             g1 = group(group_list)
-#             g = g1().get()
-#             print g
-#         useridlist = useridlist[101:]
-#         logger.debug('useridlist length is %s' % len(useridlist))
-#     logger.debug('finnaly ******useridlist length is %s' % len(useridlist))
-##########################
+        
 
 
 @celery.task
@@ -204,20 +254,28 @@ def getport(resultstring):
     port = eval('port')
     return port
 
-
+@celery.task
 def testproxy(ip_port):
     mysession = requests.Session()
     url = 'http://v2ex.com/api/nodes/all.json'
     proxies = {'http': ip_port}
     try:
-        r = mysession.get(url, proxies=proxies, timeout=60 * 4)
+        r = mysession.get(url, proxies=proxies, timeout=20)
+        nowcount = rd.incr('proxies:count')
+        rd.hset('proxies:%s' % nowcount,'ip_port', ip_port)
+        rd.hincrby('proxies:%s' % nowcount, 'num', 1)
+        return True
     except:
-        return -1
+        return False
 
 
 @celery.task
 def proxy_task():
-    proxyurl = 'http://pachong.org/anonymous.html'
+    # delete all proxies and proxies:count
+    ip_keys = rd.keys('proxies:*')
+    rd.delete(*ip_keys)
+    # get the proxies
+    proxyurl = 'http://pachong.org'
     headers = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Encoding': 'gzip,deflate,sdch',
@@ -229,7 +287,7 @@ def proxy_task():
     }
     proxysession = requests.Session()
     try:
-        r = proxysession.get(proxyurl, timeout=60 * 4)
+        r = proxysession.get(proxyurl, timeout=60)
     except:
         print 'I can not get the date of pachong.org'
     if r.status_code != 200:
@@ -246,92 +304,28 @@ def proxy_task():
     table = table[0]
     # trs = table.find_all('tr', attrs={'data-type': 'anonymous'})
     trs = table.find_all('tr')
-    # for tr in trs[0:21]:
-    for tr in trs[0:40]:
+    group_list = []
+    for tr in trs:
         idlestring = tr.find_all('td')[5].text
         idlestring = idlestring.replace('\n', '').replace(' ', '')
         if idlestring == u'空闲':
             ip = tr.find_all('td')[1].text
             portstring = tr.find_all('td')[2].text
-
             patt = re.compile(u'document.write\((.*?)\);')
-
             if re.findall(patt, portstring):
                 resultstring = re.findall(patt, portstring)[0]
             else:
                 continue
-
             exec('port = %s' % resultstring)
             port = eval('port')
             ip_port = '%s:%s' % (ip, port)
-            print 'ip_port is %s' % ip_port
-            if testproxy(ip_port) == -1:
-                continue
-            # if settings.RD.llen('ip_port')<=20:
-            settings.RD.lpush('ip_port', ip_port)
-            # else:
-            print 'it is done ip_port'
-
+            print 'ip_port is %s. next we test it.' % ip_port
+            group_list.append(testproxy.s(ip_port))
+    g1 = group(group_list)
+    g = g1().get()
     print 'it is done'
 
 
-# @celery.task
-# def users_tasks():
-# http://v2ex.com/api/members/show.json?id=79988
-# proxy_ports = settings.RD.lrange('ip_port',0,20) #21
-#     for xx in proxy_ports:
-#         last = session.query(Users).order_by('-userid')
-#         last = last[0].userid if last.count() else 1
-# 119 nums
-#         cc=0
-#         try:
-#             for id in xrange(last+1,last+120):
-#                 print 'userid=%s' % id
-#                 print 'cc=%s' % cc
-#                 url = 'http://v2ex.com/api/members/show.json?id=%s' % id
-#                 if id>79988:
-#                     logger.debug('all is done')
-#                     return
-#                 proxies = {'http':xx}
-#                 try:
-#                     for x in xrange(1,5):
-#                         try:
-#                             r = requests.get(url, proxies=proxies, timeout=60*4)
-#                             print 'success'
-#                             break
-#                         except:
-#                             time.sleep(1)
-#                             print 'next try'
-#                             if x>=4:
-#                                 logger.debug('userid=%s can not be got' % id)
-#                                 raise ForException()
-#                 except ForException:
-#                     logger.debug('userid=%s finnally can not be got' % id)
-#                     continue
-#                 try:
-#                     item = json.loads(r.content)
-#                 except:
-#                     continue
-
-#                 if item['status']=='error':
-#                     logger.debug('ip_port=%s is used out.nums is %s' % (xx, cc))
-#                     raise ForException2()
-
-#                 usertime = datetime.datetime.fromtimestamp(item['created'])
-#                 useritem = session.query(Users).filter_by(userid=item['id']).first()
-#                 if not useritem:
-#                     user = Users(userid=item['id'], status=item['status'], url=item['url'],
-#                         username=item['username'], website=item['website'], twitter=item['twitter'],
-#                         psn=item['psn'], github=item['github'], btc=item['btc'],
-#                         location=item['location'], tagline=item['tagline'],bio=item['bio'],
-#                         avatar_normal=item['avatar_normal'],user_created=usertime)
-#                     session.add(user)
-#                     print item['username']
-#                 session.commit()
-#                 cc = cc + 1
-#         except ForException2:
-#             logger.debug('ip_port=%s is finnally used out.nums is %s' % (xx, cc))
-#             continue
 
 # {u'status': u'error', u'message': u'Rate Limit Exceeded', u'rate_limit': {u'hourly_remaining': 0, u'used': 120, u'hourly_quota': 120}}
 # celery -A tasks worker -l info -c 100 -P gevent
@@ -342,8 +336,8 @@ def proxy_task():
 # b = [i.userid for i in session.query(Users)]
 # c = list(set(a).difference(set(b)))
 
-
 @celery.task
 def users_chain():
     c = chain(proxy_task.si(), users_tasks.si())
     c()
+
