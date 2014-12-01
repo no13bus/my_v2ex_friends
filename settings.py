@@ -21,7 +21,7 @@ RD = redis.Redis(connection_pool=pool)
 
 #celery settings
 CELERYD_POOL_RESTARTS = True
-
+CELERYD_FORCE_EXECV = True
 
 from datetime import timedelta
 CELERYBEAT_SCHEDULE = {
