@@ -22,6 +22,9 @@ RD = redis.Redis(connection_pool=pool)
 #celery settings
 CELERYD_POOL_RESTARTS = True
 CELERYD_FORCE_EXECV = True
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
 
 from datetime import timedelta
 CELERYBEAT_SCHEDULE = {
