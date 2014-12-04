@@ -108,7 +108,8 @@ def users_tasks_fun(proxies_key, uid, url, proxies, datatype):
         item = json.loads(r.content)
     except:
         return [uid, False]
-
+    if datatype=='topics':
+        item = item[0]
     if 'status' in item and item['status'] == 'error':
         logger.debug('proxies=%s is used out.url=%s' % (proxies['http'], url))
         return [uid, False]
@@ -136,6 +137,10 @@ def users_tasks_fun(proxies_key, uid, url, proxies, datatype):
         if not topic_item:
             node = session.query(Nodes).filter_by(nodeid=item['node']['id']).first()
             member = session.query(Users).filter_by(userid=item['member']['id']).first()
+            if not member:
+                return
+            if not node:
+                return
             topic = Topics(topicid=item['id'], title=item['title'], url=item['url'],
                          content=item['content'], content_rendered=item['content_rendered'],
                          replies=item['replies'], node=node,
@@ -238,9 +243,21 @@ def topics_tasks():
 
 @celery.task
 def nodes_tasks():
+    ip_port = rd.hget('proxies:11', 'ip_port')
     url = 'http://v2ex.com/api/nodes/all.json'
-    r = requests.get(url)
-    j = json.loads(r.content)
+    proxies = {'http':ip_port}
+    try:
+        r = requests.get(url, proxies=proxies, timeout=60)
+        print 'success'
+    except Exception as exc :
+        raise users_tasks_fun.retry(countdown=1, exc=exc)
+    try:
+        j = json.loads(r.content)
+    except:
+        return False
+
+    # r = requests.get(url)
+    # j = json.loads(r.content)
     for item in j:
         nodetime = datetime.datetime.fromtimestamp(item['created'])
         nodeitem = session.query(Nodes).filter_by(nodeid=item['id']).first()

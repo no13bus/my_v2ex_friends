@@ -30,7 +30,7 @@ from datetime import timedelta
 CELERYBEAT_SCHEDULE = {
     'users_chain_3600': {
         'task': 'tasks.users_chain',
-        'schedule': timedelta(seconds=4500),
+        'schedule': timedelta(seconds=3620),
     },
     
 }
