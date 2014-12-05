@@ -108,10 +108,10 @@ def users_tasks_fun(proxies_key, uid, url, proxies, datatype):
         item = json.loads(r.content)
     except:
         return [uid, False]
-        
-    if datatype=='topics' and type(item)=='list' and len(item)>0:
+
+    if datatype=='topics' and type(item)==list and len(item)>0:
         item = item[0]
-    if type(item)=='dict' and 'status' in item and item['status'] == 'error':
+    if type(item)==dict and 'status' in item and item['status'] == 'error':
         logger.debug('proxies=%s is used out.url=%s' % (proxies['http'], url))
         return [uid, False]
 
