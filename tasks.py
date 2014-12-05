@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 import redis
 import logging
 import logging.handlers
-from redis.exceptions import LockError, WatchError
+from redis.exceptions import WatchError
 
 
 celery = Celery(
@@ -69,56 +69,11 @@ def test1():
                 continue
 
 
-
-# @celery.task
-# def user_topics(username):
-#     url = 'http://v2ex.com/member/%s/topics?p=1' % username
-#     r = requests.get(url, timeout=60*4)
-#     c = r.content
-#     b = BeautifulSoup(c)
-#     page_num = b.select('.inner')[2].select('.fade')[0].text
-#     page_num = int(page_num.replace('1/',''))
-#     for page in xrange(1,page_num+1):
-#         url = 'http://v2ex.com/member/%s/topics?p=%s' % (username, page)
-#         r = requests.get(url, timeout=60*4)
-#         c = r.content
-#         b = BeautifulSoup(c)
-#         topics = b.select('.cell.item')
-#         for topic in topics:
-#             title = topic.select('span')[0].string
-#             repies_count = int(topic.select('.count_livid')[0]) if topic.select('.count_livid') else 0
-#             topic_info = topic.select('span')[1].text.split(u'\xa0\u2022\xa0')
-#             topic_node_name = topic_info[0].replace(' ','')
-#             topic_url = 'http://v2ex.com%s' % topic.select('span')[0].a['href']
-#             patt = re.compile(u'.*?t/(\d+)#.*')
-#             topicid = int(re.findall(patt,topic_url)[0])
-
-#             topic_r = requests.get(topic_url, headers=headers, timeout=60*4)
-#             topic_c = topic_r.content
-#             topic_b = BeautifulSoup(topic_c)
-#             ## 帖子不一定有内容
-#             tc = topic_b.select('.topic_content')
-#             topic_content = u''
-#             if tc:
-#                 for i in topic_b.select('.topic_content'):
-#                     topic_content = topic_content + i.text
-
-#             topic_info2 = topic_b.select('small.gray')[0].text.split(u'\xb7')
-#             topic_created = topic_info2[1].replace(' ','')
-#             topic_clicks = topic_info2[2].replace(' ','').replace(u'\u6b21\u70b9\u51fb', '')
-#             topic_clicks = int(topic_clicks)
-#             member = session.query(Users).filter(Users.username=username).first()
-#             node = session.query(Nodes).filter(Nodes.name=topic_node_name).first()
-#             Topics(topicid=topicid, title=title, url=topic_url, content=topic_content,
-#                 repies=repies_count, member=member, node=node, topic_created=topic_created)
-
-
-# @celery.task
-# def user_replies(username):
-
-
+### 现在问题是在函数执行的过程中 代理ip的使用次数是慢慢逐个的涨的，如果执行一次执行时间过长，那么可能这
+### 一回合在半小时的时候完成，那么在下一次的过程中，可能这个ip的使用间隔没有超过1个小时或者等于1个小时
+### 现在采取的就是吧间隔的时间变长 变成1个小时加15分钟
 @celery.task(max_retries=3)
-def users_tasks_fun(proxies_key, uid, url, proxies):
+def users_tasks_fun(proxies_key, uid, url, proxies, datatype):
     ### race condition
     with rd.pipeline() as pipe:
         while 1:
@@ -153,31 +108,48 @@ def users_tasks_fun(proxies_key, uid, url, proxies):
         item = json.loads(r.content)
     except:
         return [uid, False]
-    if item['status'] == 'error':
+
+    if 'status' in item and item['status'] == 'error':
         logger.debug('proxies=%s is used out.url=%s' % (proxies['http'], url))
         return [uid, False]
+
     if not('created' in item):
         return [uid, False]
 
-    usertime = datetime.datetime.fromtimestamp(item['created'])
-    useritem = session.query(Users).filter_by(userid=item['id']).first()
-    if not useritem:
-        user = Users(userid=item['id'], status=item['status'], url=item['url'],
-                     username=item['username'], website=item[
-                         'website'], twitter=item['twitter'],
-                     psn=item['psn'], github=item['github'], btc=item['btc'],
-                     location=item['location'], tagline=item[
-                         'tagline'], bio=item['bio'],
-                     avatar_normal=item['avatar_normal'], user_created=usertime)
-        session.add(user)
-        session.commit()
-        print item['username']
-        
+    if datatype=='users':
+        usertime = datetime.datetime.fromtimestamp(item['created'])
+        useritem = session.query(Users).filter_by(userid=item['id']).first()
+        if not useritem:
+            user = Users(userid=item['id'], status=item['status'], url=item['url'],
+                         username=item['username'], website=item[
+                             'website'], twitter=item['twitter'],
+                         psn=item['psn'], github=item['github'], btc=item['btc'],
+                         location=item['location'], tagline=item[
+                             'tagline'], bio=item['bio'],
+                         avatar_normal=item['avatar_normal'], user_created=usertime)
+            session.add(user)
+            session.commit()
+            print item['username']
+    elif datatype=='topics':
+        topic_time = datetime.datetime.fromtimestamp(item['created'])
+        topic_item = session.query(Topics).filter_by(topicid=item['id']).first()
+        if not topic_item:
+            node = session.query(Nodes).filter_by(nodeid=item['node']['id']).first()
+            member = session.query(Users).filter_by(userid=item['member']['id']).first()
+            topic = Topics(topicid=item['id'], title=item['title'], url=item['url'],
+                         content=item['content'], content_rendered=item['content_rendered'],
+                         replies=item['replies'], node=node,
+                         member=member, topic_created=topic_time)
+            session.add(topic)
+            session.commit()
+            print item['url']
+
     return [uid, True]
 
 
 @celery.task
 def users_tasks():
+    user_total = 84720
     # http://v2ex.com/api/members/show.json?id=79988
     proxies_num = int(rd.get('proxies:count'))
     ### get the userid list to handle
@@ -185,36 +157,84 @@ def users_tasks():
     all_userid = [i.id for i in session.query(Users)]
     all_id = [i.userid for i in session.query(Users)]
     c = list(set(all_userid).difference(set(all_id)))
+    if not c:
+        logger.debug('all is done')
+        return
     if len(c)<proxies_num*100:
-        ccc = proxies_num*100 - len(c)
-        final_get_userids = c + range(1+last,ccc+last+1)
+        tmp = max(c) + proxies_num*100 - len(c)
+        if tmp > user_total:
+            final_get_userids = c + range(1+max(c),user_total+1)
+        else:
+            ccc = proxies_num*100 - len(c)
+            final_get_userids = c + range(1+last,ccc+last+1)
     else:
         final_get_userids = c
 
     logger.debug('now final_get_userids first is %s' % final_get_userids[0])
+    logger.debug('now final_get_userids num is %s' % len(final_get_userids))
 
     for xx in range(1, proxies_num+1):
-        group_list = []
         for uid in final_get_userids[0:99]:
             ip_port = rd.hget('proxies:%s' % xx, 'ip_port')
             print 'userid=%s' % uid
             url = 'http://v2ex.com/api/members/show.json?id=%s' % uid
-            if uid > 84113:
-                logger.debug('all is done')
-                return
             proxies = {'http': ip_port}
-            group_list.append(users_tasks_fun.s('proxies:%s' % xx, uid, url, proxies))
-        if group_list:
-            g1 = group(group_list)
-            g = g1().get()
-            print g
-        final_get_userids = final_get_userids[100:]
+            users_tasks_fun.delay('proxies:%s' % xx, uid, url, proxies, 'users')
+        if final_get_userids[100:]:
+            final_get_userids = final_get_userids[100:]
+        else:
+            logger.debug('all is done')
+            return
+
         print len(final_get_userids)
         logger.debug('final_get_userids=%s' % len(final_get_userids))
         logger.debug('xx=%s' % xx)
 
-        
 
+@celery.task
+def topics_tasks():
+    topics_total = 148993
+    proxies_num = int(rd.get('proxies:count'))
+    last = session.query(Topics).order_by('-topicid')
+    if last.count():
+        last = session.query(Topics).order_by('-topicid')[0].topicid
+        all_topicid = [i.id for i in session.query(Topics)]
+        all_id = [i.topicid for i in session.query(Topics)]
+        c = list(set(all_topicid).difference(set(all_id)))
+        if not c:
+            logger.debug('all is done')
+            return
+        if len(c)<proxies_num*100:
+            tmp = max(c) + proxies_num*100 - len(c)
+            if tmp > topics_total:
+                final_get_topicids = c + range(1+max(c),topics_total+1)
+            else:
+                ccc = proxies_num*100 - len(c)
+                final_get_topicids = c + range(1+last,ccc+last+1)
+        else:
+            final_get_topicids = c
+    else:
+        final_get_topicids = range(1,proxies_num*100+1)
+
+
+
+    logger.debug('now final_get_topicids first is %s' % final_get_topicids[0])
+
+    for xx in range(1, proxies_num+1):
+        for tid in final_get_topicids[0:99]:
+            ip_port = rd.hget('proxies:%s' % xx, 'ip_port')
+            print 'userid=%s' % tid
+            url = 'http://v2ex.com/api/topics/show.json?id=%s' % tid
+            proxies = {'http': ip_port}
+            users_tasks_fun.delay('proxies:%s' % xx, tid, url, proxies, 'topics')
+        if final_get_topicids[100:]:
+            final_get_topicids = final_get_topicids[100:]
+        else:
+            logger.debug('all is done')
+            return
+
+        logger.debug('final_get_topicids=%s' % len(final_get_topicids))
+        logger.debug('xx=%s' % xx)
 
 @celery.task
 def nodes_tasks():
@@ -233,10 +253,6 @@ def nodes_tasks():
             print item['name']
     session.commit()
 
-
-@celery.task
-def topics_tasks():
-    pass
 
 
 @celery.task
@@ -273,7 +289,8 @@ def testproxy(ip_port):
 def proxy_task():
     # delete all proxies and proxies:count
     ip_keys = rd.keys('proxies:*')
-    rd.delete(*ip_keys)
+    if ip_keys:
+        rd.delete(*ip_keys)
     # get the proxies
     proxyurl = 'http://pachong.org'
     headers = {
@@ -338,6 +355,6 @@ def proxy_task():
 
 @celery.task
 def users_chain():
-    c = chain(proxy_task.si(), users_tasks.si())
+    c = chain(proxy_task.si(), topics_tasks.si())
     c()
 

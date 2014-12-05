@@ -12,7 +12,6 @@ import tornado.ioloop
 import tornado.options
 import tornado.web
 import tornado.httpclient
-from lib.v2exapi import V2exApi
 
 
 # class BaseHandler(tornado.web.RequestHandler):
