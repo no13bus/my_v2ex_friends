@@ -101,16 +101,17 @@ def users_tasks_fun(proxies_key, uid, url, proxies, datatype):
     ###
     try:
         r = requests.get(url, proxies=proxies, timeout=60)
-        print 'success'
+        print 'requests'
     except Exception as exc :
         raise users_tasks_fun.retry(countdown=1, exc=exc)
     try:
         item = json.loads(r.content)
     except:
         return [uid, False]
-    if datatype=='topics':
+        
+    if datatype=='topics' and type(item)=='list' and len(item)>0:
         item = item[0]
-    if 'status' in item and item['status'] == 'error':
+    if type(item)=='dict' and 'status' in item and item['status'] == 'error':
         logger.debug('proxies=%s is used out.url=%s' % (proxies['http'], url))
         return [uid, False]
 
@@ -130,6 +131,7 @@ def users_tasks_fun(proxies_key, uid, url, proxies, datatype):
                          avatar_normal=item['avatar_normal'], user_created=usertime)
             session.add(user)
             session.commit()
+            print 'ok'
             print item['username']
     elif datatype=='topics':
         topic_time = datetime.datetime.fromtimestamp(item['created'])
@@ -143,10 +145,11 @@ def users_tasks_fun(proxies_key, uid, url, proxies, datatype):
                 return
             topic = Topics(topicid=item['id'], title=item['title'], url=item['url'],
                          content=item['content'], content_rendered=item['content_rendered'],
-                         replies=item['replies'], node=node,
-                         member=member, topic_created=topic_time)
+                         replies=item['replies'], node=item['node']['id'],
+                         member=item['member']['id'], topic_created=topic_time)
             session.add(topic)
             session.commit()
+            print 'ok'
             print item['url']
 
     return [uid, True]
@@ -203,21 +206,28 @@ def topics_tasks():
     last = session.query(Topics).order_by('-topicid')
     if last.count():
         last = session.query(Topics).order_by('-topicid')[0].topicid
+        if last >= topics_total:
+            logger.debug('topics_total---all is done')
+            return
         all_topicid = [i.id for i in session.query(Topics)]
         all_id = [i.topicid for i in session.query(Topics)]
         c = list(set(all_topicid).difference(set(all_id)))
         if not c:
-            logger.debug('all is done')
-            return
-        if len(c)<proxies_num*100:
-            tmp = max(c) + proxies_num*100 - len(c)
+            clen = 0
+            cmax = last
+        else:
+            clen = len(c)
+            cmax = max(c)
+        if clen<proxies_num*100:
+            tmp = cmax + proxies_num*100 - clen
             if tmp > topics_total:
-                final_get_topicids = c + range(1+max(c),topics_total+1)
+                final_get_topicids = c + range(1+cmax,topics_total+1)
             else:
-                ccc = proxies_num*100 - len(c)
+                ccc = proxies_num*100 - clen
                 final_get_topicids = c + range(1+last,ccc+last+1)
         else:
             final_get_topicids = c
+
     else:
         final_get_topicids = range(1,proxies_num*100+1)
 
