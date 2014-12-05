@@ -55,10 +55,10 @@ class Topics(Base):
     __tablename__ = 'topics'
     id = Column(Integer, primary_key=True, autoincrement=True)
     topicid = Column(Integer, unique=True)
-    title =  Column(String(20), default='')
+    title =  Column(String(240), default='')
     url =  Column(String(100), default='')
-    content = Column(String(1000), default='')
-    content_rendered = Column(String(1000), default='')
+    content = Column(String(10000), default='')
+    content_rendered = Column(String(10000), default='')
     replies = Column(Integer, default=0)
     member = Column(Integer, ForeignKey("users.userid"), default=0)
     node = Column(Integer, ForeignKey("nodes.nodeid"), default=0)
