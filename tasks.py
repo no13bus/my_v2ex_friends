@@ -202,7 +202,7 @@ def topics_tasks():
     proxies_num = int(rd.get('proxies:count'))
     last = session.query(Topics).order_by('-topicid')
     if last.count():
-        last = session.query(Topics).order_by('-topicid')[0].topicid
+        last = last[0].topicid
         all_topicid = [i.id for i in session.query(Topics)]
         all_id = [i.topicid for i in session.query(Topics)]
         c = list(set(all_topicid).difference(set(all_id)))
