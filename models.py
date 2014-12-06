@@ -14,7 +14,7 @@ Base = declarative_base()
 class Users(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True, autoincrement=True)
-    userid = Column(Integer, unique=True)
+    userid = Column(Integer, unique=True, index=True)
     status =  Column(String(20), default='')
     url =  Column(String(100), default='')
     username = Column(String(50), default='')
@@ -54,7 +54,7 @@ class Nodes(Base):
 class Topics(Base):
     __tablename__ = 'topics'
     id = Column(Integer, primary_key=True, autoincrement=True)
-    topicid = Column(Integer, unique=True)
+    topicid = Column(Integer, unique=True, index=True)
     title =  Column(String(240), default='')
     url =  Column(String(100), default='')
     content = Column(String(10000), default='')
