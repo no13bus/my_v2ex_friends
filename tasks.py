@@ -210,7 +210,7 @@ def topics_tasks():
             logger.debug('topics_total---all is done')
             return
         # all_topicid = [i.topicid for i in session.query(Topics)]
-        all_topic_id = session.query(Topics.topicid).all()
+        all_topicid = session.query(Topics.topicid).all()
         all_id = range(1, last+1)
         c = list(set(all_id).difference(set(all_topicid)))
         c.sort()
