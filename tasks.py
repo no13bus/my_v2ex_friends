@@ -209,8 +209,8 @@ def topics_tasks():
         if last >= topics_total and last.count()>=topics_total:
             logger.debug('topics_total---all is done')
             return
-        # all_topicid = [i.topicid for i in session.query(Topics)]
-        all_topicid = session.query(Topics.topicid).all()
+        all_topicid = [i.topicid for i in session.query(Topics.topicid)]
+        # all_topicid = session.query(Topics.topicid).all()
         all_id = range(1, last+1)
         c = list(set(all_id).difference(set(all_topicid)))
         c.sort()
