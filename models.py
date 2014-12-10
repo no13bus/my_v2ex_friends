@@ -97,7 +97,7 @@ class Replies(Base):
     content = Column(String(1000), default='')
     content_rendered = Column(String(1000), default='')
     member = Column(Integer, ForeignKey("users.userid"), default=0)
-    topic = Column(Integer, ForeignKey("topics.topicid"), default=0)
+    # topic = Column(Integer, ForeignKey("topics.topicid"), default=0)
     reply_created = Column(DateTime, default=datetime.now)
     created = Column(DateTime, default=datetime.now)
 
