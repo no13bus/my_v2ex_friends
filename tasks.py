@@ -17,8 +17,7 @@ import logging.handlers
 from redis.exceptions import WatchError
 
 
-celery = Celery(
-    'v2ex', broker='redis://localhost:6379/0', backend='redis://localhost')
+celery = Celery('v2ex', broker='redis://localhost:6379/0', backend='redis://localhost')
 celery.config_from_object('settings')
 session = ConnectDB()
 
@@ -73,7 +72,7 @@ def test1():
 ### 一回合在半小时的时候完成，那么在下一次的过程中，可能这个ip的使用间隔没有超过1个小时或者等于1个小时
 ### 现在采取的就是吧间隔的时间变长 变成1个小时加15分钟
 @celery.task(max_retries=3)
-def users_tasks_fun(proxies_key, uid, url, proxies, datatype):
+def users_tasks_fun(proxies_key, xid, url, proxies, datatype):
     ### race condition
     with rd.pipeline() as pipe:
         while 1:
@@ -88,7 +87,7 @@ def users_tasks_fun(proxies_key, uid, url, proxies, datatype):
                 else:
                     logger.debug('proxies=%s is used out!!' % proxies['http'])
                     pipe.unwatch()
-                    return [uid, False]
+                    return [xid, False]
             except WatchError:
                 continue
 
@@ -101,22 +100,23 @@ def users_tasks_fun(proxies_key, uid, url, proxies, datatype):
     ###
     try:
         r = requests.get(url, proxies=proxies, timeout=60)
-        print 'requests'
+        print 'requests is ok'
     except Exception as exc :
         raise users_tasks_fun.retry(countdown=1, exc=exc)
     try:
         item = json.loads(r.content)
     except:
-        return [uid, False]
+        print 'json is error'
+        return [xid, False]
 
     if datatype=='topics' and type(item)==list and len(item)>0:
         item = item[0]
     if type(item)==dict and 'status' in item and item['status'] == 'error':
         logger.debug('proxies=%s is used out.url=%s' % (proxies['http'], url))
-        return [uid, False]
-
-    if not('created' in item):
-        return [uid, False]
+        return [xid, False]
+    if datatype!='replies':
+        if not('created' in item):
+            return [xid, False]
 
     if datatype=='users':
         usertime = datetime.datetime.fromtimestamp(item['created'])
@@ -131,7 +131,7 @@ def users_tasks_fun(proxies_key, uid, url, proxies, datatype):
                          avatar_normal=item['avatar_normal'], user_created=usertime)
             session.add(user)
             session.commit()
-            print 'ok'
+            print 'user is ok'
             print item['username']
     elif datatype=='topics':
         topic_time = datetime.datetime.fromtimestamp(item['created'])
@@ -149,10 +149,27 @@ def users_tasks_fun(proxies_key, uid, url, proxies, datatype):
                          member=item['member']['id'], topic_created=topic_time)
             session.add(topic)
             session.commit()
-            print 'ok'
+            print 'topics are ok'
             print item['url']
-
-    return [uid, True]
+    elif datatype == 'replies':
+        topic = session.query(Topics.topicid).filter_by(topicid=xid).first()
+        if not topic:
+            logger.debug('topic %s is not existed' % xid)
+            return [xid, False]
+        for itemx in item:
+            member = session.query(Users.userid).filter_by(userid=itemx['member']['id']).first()
+            if not member:
+                return
+            reply_time = datetime.datetime.fromtimestamp(itemx['created'])
+            reply_item = session.query(Replies).filter_by(replyid=itemx['id']).first()
+            if not reply_item:
+                reply = Replies(replyid=itemx['id'], content=itemx['content'], content_rendered=itemx['content_rendered'],
+                                thanks=itemx['thanks'], member=itemx['member']['id'], topic=xid, reply_created=reply_time)
+                session.add(reply)
+                session.commit()
+                print 'replies are ok'
+                print itemx['id']
+    return [xid, True]
 
 
 @celery.task
@@ -196,6 +213,60 @@ def users_tasks():
 
         print len(final_get_userids)
         logger.debug('final_get_userids=%s' % len(final_get_userids))
+        logger.debug('xx=%s' % xx)
+
+@celery.task
+def replies_tasks():
+    # replies_total = 1576974
+    topics_total = 148993
+    proxies_num = int(rd.get('proxies:count'))
+    last1 = session.query(Replies.topic).order_by('-topic')
+    if last1.count():
+        last = last1[0].topic
+        if last >= topics_total and last1.count()>=topics_total:
+            logger.debug('replies_total---all is done')
+            return
+        all_topicid = [i.topic for i in session.query(Replies.topic)]
+        all_id = range(1, last+1)
+        c = list(set(all_id).difference(set(all_topicid)))
+        c.sort()
+        if not c:
+            clen = 0
+            cmax = last
+        else:
+            clen = len(c)
+            cmax = max(c)
+        if clen<proxies_num*100:
+            tmp = cmax + proxies_num*100 - clen
+            if tmp > topics_total:
+                final_get_topicids = c + range(1+cmax,topics_total+1)
+            else:
+                ccc = proxies_num*100 - clen
+                final_get_topicids = c + range(1+last,ccc+last+1)
+        else:
+            final_get_topicids = c
+
+    else:
+        final_get_topicids = range(1,proxies_num*100+1)
+
+
+
+    logger.debug('reply-task::now final_get_topicids first is %s' % final_get_topicids[0])
+
+    for xx in range(1, proxies_num+1):
+        for tid in final_get_topicids[0:99]:
+            ip_port = rd.hget('proxies:%s' % xx, 'ip_port')
+            print 'topicid=%s' % tid
+            url = 'http://v2ex.com/api/replies/show.json?topic_id=%s' % tid
+            proxies = {'http': ip_port}
+            users_tasks_fun.delay('proxies:%s' % xx, tid, url, proxies, 'replies')
+        if final_get_topicids[100:]:
+            final_get_topicids = final_get_topicids[100:]
+        else:
+            logger.debug('all is done')
+            return
+
+        logger.debug('reply-task::final_get_topicids=%s' % len(final_get_topicids))
         logger.debug('xx=%s' % xx)
 
 
@@ -282,22 +353,6 @@ def nodes_tasks():
             print item['name']
     session.commit()
 
-
-
-@celery.task
-def replies_tasks():
-    pass
-
-
-@celery.task
-def proxy_tasks():
-    pass
-
-
-def getport(resultstring):
-    exec('port = %s' % resultstring)
-    port = eval('port')
-    return port
 
 @celery.task
 def testproxy(ip_port):
@@ -404,6 +459,6 @@ def proxy_task():
 
 @celery.task
 def users_chain():
-    c = chain(proxy_task.si(), topics_tasks.si())
+    c = chain(proxy_task.si(), replies_tasks.si())
     c()
 
