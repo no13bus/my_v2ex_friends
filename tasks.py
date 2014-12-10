@@ -203,10 +203,10 @@ def users_tasks():
 def topics_tasks():
     topics_total = 148993
     proxies_num = int(rd.get('proxies:count'))
-    last = session.query(Topics).order_by('-topicid')
-    if last.count():
-        last = session.query(Topics).order_by('-topicid')[0].topicid
-        if last >= topics_total and last.count()>=topics_total:
+    last1 = session.query(Topics.topicid).order_by('-topicid')
+    if last1.count():
+        last = last1[0].topicid
+        if last >= topics_total and last1.count()>=topics_total:
             logger.debug('topics_total---all is done')
             return
         # all_topicid = [i.id for i in session.query(Topics)]
