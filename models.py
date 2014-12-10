@@ -54,7 +54,7 @@ class Nodes(Base):
 class Topics(Base):
     __tablename__ = 'topics'
     id = Column(Integer, primary_key=True, autoincrement=True)
-    topicid = Column(Integer, unique=True)
+    topicid = Column(Integer, unique=True, index=True)
     title =  Column(String(240), default='')
     url =  Column(String(100), default='')
     content = Column(String(10000), default='')

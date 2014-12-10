@@ -209,8 +209,8 @@ def topics_tasks():
         if last >= topics_total and last1.count()>=topics_total:
             logger.debug('topics_total---all is done')
             return
-        # all_topicid = [i.id for i in session.query(Topics)]
-        all_topicid = [i.topicid for i in session.query(Topics)]
+        all_topicid = [i.topicid for i in session.query(Topics.topicid)]
+        # all_topicid = session.query(Topics.topicid).all()
         all_id = range(1, last+1)
         c = list(set(all_id).difference(set(all_topicid)))
         c.sort()
@@ -367,6 +367,26 @@ def proxy_task():
             ip_port = '%s:%s' % (ip, port)
             print 'ip_port is %s. next we test it.' % ip_port
             group_list.append(testproxy.s(ip_port))
+
+    url = 'http://www.xici.net.co/nn'
+    try:
+        r = requests.get(url, timeout=60)
+    except:
+        print 'over'
+        return
+    try:
+        b = BeautifulSoup(r.content)
+    except:
+        print 'over'
+        return
+    trs = b.select('tr')[1:]
+    for tr in trs:
+        httporhttps = tr.select('td')[6].string
+        if httporhttps == 'HTTP':
+            ip_port = '%s:%s' % (tr.select('td')[2].string, tr.select('td')[3].string)
+            print 'ip_port is %s. next we test it.' % ip_port
+            group_list.append(testproxy.s(ip_port))
+
     g1 = group(group_list)
     g = g1().get()
     print 'it is done'
