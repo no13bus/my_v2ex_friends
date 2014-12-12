@@ -79,6 +79,7 @@ def users_tasks_fun(proxies_key, xid, url, proxies, datatype):
         while 1:
             try:
                 pipe.watch(proxies_key)
+                print 'proxies_key===%s' % proxies_key
                 count = int(rd.hget(proxies_key, 'num'))
                 if count<150:
                     pipe.multi()
@@ -88,9 +89,13 @@ def users_tasks_fun(proxies_key, xid, url, proxies, datatype):
                 else:
                     logger.debug('proxies=%s is used out!!' % proxies['http'])
                     pipe.unwatch()
-                    return [xid, False]
+                    return [xid, False, 0]
             except WatchError:
                 continue
+            except Exception as ex0:
+                print ex0
+                return [xid, False, 1]
+
 
     # count = int(rd.hget(proxies_key, 'num'))
     # if count >= 150:
@@ -108,7 +113,7 @@ def users_tasks_fun(proxies_key, xid, url, proxies, datatype):
         item = json.loads(r.content)
     except:
         print 'json is error'
-        return [xid, False]
+        return [xid, False, 2]
 
     if datatype=='topics' and type(item)==list and len(item)>0:
         item = item[0]
@@ -117,7 +122,8 @@ def users_tasks_fun(proxies_key, xid, url, proxies, datatype):
         return [xid, False]
     if datatype!='replies':
         if not('created' in item):
-            return [xid, False]
+            return [xid, False, 3]
+        
 
     if datatype=='users':
         usertime = datetime.datetime.fromtimestamp(item['created'])
@@ -153,10 +159,12 @@ def users_tasks_fun(proxies_key, xid, url, proxies, datatype):
             print 'topics are ok'
             print item['url']
     elif datatype == 'replies':
+        if not item:
+            return [xid,False, 4]
         topic = session.query(Topics.topicid).filter_by(topicid=xid).first()
         if not topic:
             logger.debug('topic %s is not existed' % xid)
-            return [xid, False]
+            return [xid, False, 5]
         for itemx in item:
             member = session.query(Users.userid).filter_by(userid=itemx['member']['id']).first()
             if not member:
