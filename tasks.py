@@ -238,7 +238,7 @@ def replies_tasks():
         #### notice!!! all_topicid = [i[0] for i in session.query(Replies.topic)] is easily be killed when data is big. So 
         #### Replies.topic should be distinct..
         all_topicid = [i[0] for i in session.query(distinct(Replies.topic))]
-        all_id = range(1, last+1)
+        all_id = [i.topicid for i in session.query(Topics.topicid)]
         c = list(set(all_id).difference(set(all_topicid)))
         c.sort()
         if not c:
