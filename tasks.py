@@ -15,6 +15,7 @@ import redis
 import logging
 import logging.handlers
 from redis.exceptions import WatchError
+from sqlalchemy import distinct
 
 
 celery = Celery('v2ex', broker='redis://localhost:6379/0', backend='redis://localhost')
@@ -226,7 +227,9 @@ def replies_tasks():
         if last >= topics_total and last1.count()>=topics_total:
             logger.debug('replies_total---all is done')
             return
-        all_topicid = [i.topic for i in session.query(Replies.topic)]
+        #### notice!!! all_topicid = [i[0] for i in session.query(Replies.topic)] is easily be killed when data is big. So 
+        #### Replies.topic should be distinct..
+        all_topicid = [i[0] for i in session.query(distinct(Replies.topic))]
         all_id = range(1, last+1)
         c = list(set(all_id).difference(set(all_topicid)))
         c.sort()
