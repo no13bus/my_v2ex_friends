@@ -453,7 +453,7 @@ def proxy_task():
     #         print 'ip_port is %s. next we test it.' % ip_port
     #         group_list.append(testproxy.s(ip_port))
 
-    url = 'http://www.proxy360.cn/Proxy'
+    url = 'http://www.proxy360.cn/default.aspx'
     try:
         r = requests.get(url, timeout=60)
     except:
