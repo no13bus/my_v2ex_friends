@@ -453,32 +453,37 @@ def proxy_task():
     #         print 'ip_port is %s. next we test it.' % ip_port
     #         group_list.append(testproxy.s(ip_port))
 
-    url = 'http://www.proxy360.cn/default.aspx'
-    try:
-        r = requests.get(url, timeout=60)
-    except:
-        print 'over'
-        return
-    try:
-        b = BeautifulSoup(r.content)
-    except:
-        print 'over'
-        return
-    trs = b.select('.proxylistitem')
+    # url = 'http://www.proxy360.cn/default.aspx'
+    # try:
+    #     r = requests.get(url, timeout=60)
+    # except:
+    #     print 'over'
+    #     return
+    # try:
+    #     b = BeautifulSoup(r.content)
+    # except:
+    #     print 'over'
+    #     return
+    # trs = b.select('.proxylistitem')
+    # for tr in trs:
+    #     htype = tr.select('div')[0].select('span')[2].text
+    #     htype = htype.replace(' ', '').replace('\r\n', '')
+
+    #     if htype == u'高匿':
+    #         h1 = tr.select('div')[0].select('span')[0].text
+    #         h1 = h1.replace(' ', '').replace('\r\n', '')
+    #         h2 = tr.select('div')[0].select('span')[1].text
+    #         h2 = h2.replace(' ', '').replace('\r\n', '')
+
+    #         ip_port = '%s:%s' % (h1, h2)
+    #         print 'ip_port is %s. next we test it.' % ip_port
+    #         group_list.append(testproxy.s(ip_port))
+    trs = []
+    with open('proxy.txt', 'rb') as f1:
+        trs = f1.readlines()
     for tr in trs:
-        htype = tr.select('div')[0].select('span')[2].text
-        htype = htype.replace(' ', '').replace('\r\n', '')
-
-        if htype == u'高匿':
-            h1 = tr.select('div')[0].select('span')[0].text
-            h1 = h1.replace(' ', '').replace('\r\n', '')
-            h2 = tr.select('div')[0].select('span')[1].text
-            h2 = h2.replace(' ', '').replace('\r\n', '')
-
-            ip_port = '%s:%s' % (h1, h2)
-            print 'ip_port is %s. next we test it.' % ip_port
-            group_list.append(testproxy.s(ip_port))
-
+        ip_port = tr.replace('\r\n','') 
+        group_list.append(testproxy.s(ip_port))
 
     g1 = group(group_list)
     g = g1().get()
