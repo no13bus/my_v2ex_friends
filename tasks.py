@@ -534,6 +534,6 @@ def proxy_task():
 
 @celery.task
 def users_chain():
-    c = chain(proxy_task.si(), replies_tasks.si())
+    c = chain(proxy_task.si(), users_tasks.si())
     c()
 
