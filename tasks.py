@@ -183,29 +183,61 @@ def users_tasks_fun(proxies_key, xid, url, proxies, datatype):
 
 @celery.task
 def users_tasks():
-    user_total = 84720
-    # http://v2ex.com/api/members/show.json?id=79988
+    user_total = 86660
     proxies_num = int(rd.get('proxies:count'))
-    ### get the userid list to handle
-    last = session.query(Users).order_by('-userid')[0].userid
-    all_userid = [i.id for i in session.query(Users)]
-    all_id = [i.userid for i in session.query(Users)]
-    c = list(set(all_userid).difference(set(all_id)))
-    if not c:
-        logger.debug('all is done')
-        return
-    if len(c)<proxies_num*100:
-        tmp = max(c) + proxies_num*100 - len(c)
-        if tmp > user_total:
-            final_get_userids = c + range(1+max(c),user_total+1)
+    last1 = session.query(Users.userid).order_by('-userid')
+    if last1.count():
+        last = last1[0].userid
+        if last >= user_total and last1.count()>=user_total:
+            logger.debug('user_total---all is done')
+            return
+        all_userid = [i.userid for i in session.query(Users.userid)]
+        all_id = range(1, last+1)
+        c = list(set(all_id).difference(set(all_userid)))
+        c.sort()
+        if not c:
+            clen = 0
+            cmax = last
         else:
-            ccc = proxies_num*100 - len(c)
-            final_get_userids = c + range(1+last,ccc+last+1)
+            clen = len(c)
+            cmax = max(c)
+        if clen<proxies_num*100:
+            tmp = cmax + proxies_num*100 - clen
+            if tmp > user_total:
+                final_get_userids = c + range(1+cmax,user_total+1)
+            else:
+                ccc = proxies_num*100 - clen
+                final_get_userids = c + range(1+last,ccc+last+1)
+        else:
+            final_get_userids = c
+
     else:
-        final_get_userids = c
+        final_get_userids = range(1,proxies_num*100+1)
+
+
+    # user_total = 86660
+    # # http://v2ex.com/api/members/show.json?id=79988
+    # proxies_num = int(rd.get('proxies:count'))
+    # ### get the userid list to handle
+    # last = session.query(Users).order_by('-userid')[0].userid
+    # all_userid = [i.id for i in session.query(Users)]
+    # all_id = [i.userid for i in session.query(Users)]
+    # c = list(set(all_userid).difference(set(all_id)))
+    # if not c:
+    #     logger.debug('all is done')
+    #     return
+    # if len(c)<proxies_num*100:
+    #     tmp = max(c) + proxies_num*100 - len(c)
+    #     if tmp > user_total:
+    #         final_get_userids = c + range(1+max(c),user_total+1)
+    #     else:
+    #         ccc = proxies_num*100 - len(c)
+    #         final_get_userids = c + range(1+last,ccc+last+1)
+    # else:
+    #     final_get_userids = c
 
     logger.debug('now final_get_userids first is %s' % final_get_userids[0])
-    logger.debug('now final_get_userids num is %s' % len(final_get_userids))
+
 
     for xx in range(1, proxies_num+1):
         for uid in final_get_userids[0:99]:
@@ -220,8 +252,8 @@ def users_tasks():
             logger.debug('all is done')
             return
 
-        print len(final_get_userids)
-        logger.debug('final_get_userids=%s' % len(final_get_userids))
+        ll = len(final_get_userids)
+        logger.debug('final_get_userids=%s' % ll)
         logger.debug('xx=%s' % xx)
 
 @celery.task
