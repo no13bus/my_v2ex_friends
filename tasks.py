@@ -470,24 +470,24 @@ def proxy_task():
             print 'ip_port is %s. next we test it.' % ip_port
             group_list.append(testproxy.s(ip_port))
 
-    url = 'http://www.xici.net.co/nn'
-    try:
-        r = requests.get(url, timeout=60)
-    except:
-        print 'over'
-        return
-    try:
-        b = BeautifulSoup(r.content)
-    except:
-        print 'over'
-        return
-    trs = b.select('tr')[1:]
-    for tr in trs:
-        httporhttps = tr.select('td')[6].string
-        if httporhttps == 'HTTP':
-            ip_port = '%s:%s' % (tr.select('td')[2].string, tr.select('td')[3].string)
-            print 'ip_port is %s. next we test it.' % ip_port
-            group_list.append(testproxy.s(ip_port))
+    # url = 'http://www.xici.net.co/nn'
+    # try:
+    #     r = requests.get(url, timeout=60)
+    # except:
+    #     print 'over'
+    #     return
+    # try:
+    #     b = BeautifulSoup(r.content)
+    # except:
+    #     print 'over'
+    #     return
+    # trs = b.select('tr')[1:]
+    # for tr in trs:
+    #     httporhttps = tr.select('td')[6].string
+    #     if httporhttps == 'HTTP':
+    #         ip_port = '%s:%s' % (tr.select('td')[2].string, tr.select('td')[3].string)
+    #         print 'ip_port is %s. next we test it.' % ip_port
+    #         group_list.append(testproxy.s(ip_port))
 
     # url = 'http://www.proxy360.cn/default.aspx'
     # try:
