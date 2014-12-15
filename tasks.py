@@ -315,11 +315,7 @@ def replies_tasks():
 
 @celery.task
 def topics_tasks():
-<<<<<<< HEAD
-    topics_total = 151670
-=======
     topics_total = 151774
->>>>>>> 4cc164ed3887a0398db59e9a5095ab4be7bef997
     proxies_num = int(rd.get('proxies:count'))
     last1 = session.query(Topics.topicid).order_by('-topicid')
     if last1.count():
